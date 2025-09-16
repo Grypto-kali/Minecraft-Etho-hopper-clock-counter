@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hopper Clock Planner</title>
+<style>
+  :root {
+    /* Colors */
+    --bg: #0f1220;
+    --panel: #1b2140;
+    --text: #e8ecff;
+    --muted: #a9b0d9;
+    --accent: #8fb4ff;
+    --err: #ff6b6b;
+
+    /* Fonts & layout */
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 10px;
+  }
+
+  /* --- Base --- */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    line-height: 1.45;
+  }
+  .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 28px; margin: 0 0 6px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+
+  /* --- Layout --- */
+  .grid { display: grid; gap: 16px; }
+  @media (min-width: 900px) { .grid { grid-template-columns: 380px 1fr; } }
+  .card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  /* --- Form --- */
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  input[type="text"],
+  input[type="number"],
+  select {
+    width: 100%;
+    background: #0e1330;
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  input[type="checkbox"] { transform: translateY(1px); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .inline { display: flex; align-items: center; gap: 10px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .actions { display: flex; gap: 10px; margin-top: 12px; }
+  button {
+    background: var(--accent);
+    color: #0b1026;
+    border: none;
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  /* --- Result view switch --- */
+  .view-switch { display: flex; gap: 8px; margin-bottom: 10px; align-items:center; }
+  .badge { font-size: 11px; color: var(--muted); }
+  .pill {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .pill.active { background: var(--accent); color: #0b1026; border: none; }
+
+  /* --- Tables --- */
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { padding: 6px 10px; text-align: left; }
+  th {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--mono); }
+
+  /* --- Cards layout --- */
+  .section { margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; }
+  .kvs { display:grid; grid-template-columns: 1fr 1fr; gap:8px 14px; }
+  .kv { display:flex; justify-content:space-between; gap:10px; }
+  .layers { display: grid; gap: 8px; margin-top: 8px; }
+  .layer-item {
+    background: #0e1330;
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .muted { color: var(--muted); }
+  .error { color: var(--err); }
+
+  .footer { margin-top: 24px; font-size: 12px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Hopper Clock Planner</h1>
+    <p class="lead">Plan hopper-clock layers and timing from a target period in seconds.</p>
+
+    <div class="grid">
+      <!-- Controls -->
+      <div class="card">
+        <div class="inline" style="justify-content:space-between; margin-bottom:10px;">
+          <span class="badge">Mode</span>
+          <label class="inline"><input type="checkbox" id="advancedToggle" /> <span>Advanced settings</span></label>
+        </div>
+
+        <!-- Basic -->
+        <div id="basicFields">
+          <label for="secTotal">Time in seconds (required)</label>
+          <input type="text" id="secTotal" placeholder="e.g. 3600" />
+          <p class="hint">Only seconds; other parameters use defaults.</p>
+        </div>
+
+        <!-- Advanced -->
+        <div id="advancedFields" style="display:none;">
+          <div class="row">
+            <div>
+              <label for="secTotalAdv">Time in seconds (required)</label>
+              <input type="text" id="secTotalAdv" placeholder="e.g. 3600" />
+            </div>
+            <div>
+              <label for="spi">Seconds per item</label>
+              <input type="text" id="spi" placeholder="default 0.8" />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="cap">Hopper capacity (items)</label>
+              <input type="number" id="cap" placeholder="default 320" />
+            </div>
+            <div>
+              <label for="stack">Stack size (items/stack)</label>
+              <input type="number" id="stack" placeholder="default 64" />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="rounding">Rounding</label>
+              <select id="rounding">
+                <option value="nearest">nearest</option>
+                <option value="floor">floor</option>
+                <option value="ceil">ceil</option>
+              </select>
+            </div>
+            <div>
+              <label for="forcedLayers">Force EXACT number of layers (optional)</label>
+              <input type="number" id="forcedLayers" placeholder="blank = auto" />
+            </div>
+          </div>
+          <div class="inline" style="margin-top:8px;">
+            <input type="checkbox" id="showTiming" checked />
+            <label for="showTiming">Show per-layer timing contribution</label>
+          </div>
+          <p class="hint">Leave fields blank to use defaults.</p>
+        </div>
+
+        <div class="actions">
+          <button id="computeBtn">Compute</button>
+          <button class="secondary" id="resetBtn" title="Reset all inputs">Reset</button>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="card" id="resultCard">
+        <div class="view-switch">
+          <span class="badge">View</span>
+          <button class="pill" data-view="table" id="viewTable">Table</button>
+          <button class="pill active" data-view="cards" id="viewCards">Cards</button>
+        </div>
+        <div id="resultTableView" style="display:none;"></div>
+        <div id="resultCardView"></div>
+        <div id="placeholder" class="muted">Enter values and click <b>Compute</b>.</div>
+      </div>
+    </div>
+
+    <div class="footer">Defaults: seconds/item = 0.8, hopper cap = 320, stack size = 64, rounding = nearest.</div>
+  </div>
+
+<script>
+/* ===== Defaults (basic mode) ===== */
+const DEFAULT_SPI   = 0.8;
+const DEFAULT_CAP   = 320;
+const DEFAULT_STACK = 64;
+const DEFAULT_ROUND = "nearest";
+
+/* ===== Helpers ===== */
+function toFloat(s, def=null) {
+  const t = (s ?? "").toString().trim().replace(",", ".");
+  if (t === "") {
+    if (def === null) throw new Error("missing");
+    return Number(def);
+  }
+  const v = Number(t);
+  if (!isFinite(v)) throw new Error("invalid");
+  return v;
+}
+function toInt(s, def=null) {
+  const t = (s ?? "").toString().trim();
+  if (t === "") {
+    if (def === null) throw new Error("missing");
+    return Number(def);
+  }
+  const v = parseInt(t, 10);
+  if (!isFinite(v)) throw new Error("invalid");
+  return v;
+}
+function stacksAndItems(n, stackSize) { return [Math.floor(n / stackSize), n % stackSize]; }
+function roundItems(x, mode='nearest') {
+  if (mode === 'nearest') return Math.round(x);
+  if (mode === 'floor')   return Math.floor(x);
+  if (mode === 'ceil')    return Math.ceil(x);
+  return Math.round(x);
+}
+function fmt1(x){ return (Math.round(x*10)/10).toFixed(1); }
+function fmtUnits(seconds){ return `${fmt1(seconds)} s  |  ${fmt1(seconds/60)} min  |  ${fmt1(seconds/3600)} h`; }
+
+/* Prime factors */
+function primeFactors(n) {
+  const f = []; let d = 2;
+  while (d * d <= n) {
+    while (n % d === 0) { f.push(d); n = Math.floor(n / d); }
+    d += (d === 2) ? 1 : 2;
+  }
+  if (n > 1) f.push(n);
+  return f;
+}
+/* Factor 'total' into exactly L bins whose products ≤ cap */
+function binsWithExactLayers(total, L, cap) {
+  if (L <= 0) return null;
+  if (total === 1) return Array(L).fill(1);
+  const primes = primeFactors(total);
+  if (primes.some(p => p > cap)) return null;
+  primes.sort((a,b)=>b-a);
+  const bins = Array(L).fill(1);
+
+  function dfs(i) {
+    if (i === primes.length) return true;
+    const p = primes[i];
+    const order = Array.from(bins.keys()).sort((k1,k2)=>bins[k2]-bins[k1]);
+    const seen = new Set();
+    for (const k of order) {
+      if (seen.has(bins[k])) continue;
+      seen.add(bins[k]);
+      if (bins[k]*p <= cap) {
+        bins[k] *= p;
+        if (dfs(i+1)) return true;
+        bins[k] = Math.floor(bins[k] / p);
+      }
+    }
+    return false;
+  }
+  if (dfs(0)) { bins.sort((a,b)=>b-a); return bins; }
+  return null;
+}
+/* Minimal layered carry scheme */
+function hopperLayersMin(totalItems, cap) {
+  const layers = []; let remaining = totalItems;
+  while (remaining > cap) { layers.push(cap); remaining = Math.ceil(remaining / cap); }
+  layers.push(remaining);
+  return layers;
+}
+
+/* ===== UI elements ===== */
+const advToggle   = document.getElementById("advancedToggle");
+const basicFields = document.getElementById("basicFields");
+const advFields   = document.getElementById("advancedFields");
+const placeholder = document.getElementById("placeholder");
+const tableView   = document.getElementById("resultTableView");
+const cardView    = document.getElementById("resultCardView");
+const viewBtns    = [document.getElementById("viewTable"), document.getElementById("viewCards")];
+
+/* View switch */
+function setView(which){
+  const isTable = which === "table";
+  tableView.style.display = isTable ? "block" : "none";
+  cardView.style.display  = isTable ? "none"  : "block";
+  viewBtns.forEach(b=>b.classList.toggle("active", b.dataset.view === which));
+}
+viewBtns.forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+
+/* Mode switch */
+advToggle.addEventListener("change", () => {
+  const on = advToggle.checked;
+  basicFields.style.display = on ? "none" : "block";
+  advFields.style.display   = on ? "block" : "none";
+  placeholder.style.display = "block";
+  tableView.innerHTML = "";
+  cardView.innerHTML  = "";
+});
+
+/* Reset */
+document.getElementById("resetBtn").addEventListener("click", () => {
+  document.getElementById("secTotal").value = "";
+  document.getElementById("secTotalAdv").value = "";
+  document.getElementById("spi").value = "";
+  document.getElementById("cap").value = "";
+  document.getElementById("stack").value = "";
+  document.getElementById("rounding").value = DEFAULT_ROUND;
+  document.getElementById("forcedLayers").value = "";
+  document.getElementById("showTiming").checked = true;
+  advToggle.checked = false;
+  advToggle.dispatchEvent(new Event("change"));
+  setView("cards"); /* default */
+});
+
+/* ===== Rendering helpers ===== */
+function renderTable({secTotal, spi, cap, stack, rounding, forcedLayers, showTiming, rawItems, totalItems, list}) {
+  const el = document.createElement("div");
+  el.innerHTML = `
+    <table>
+      <thead><tr><th colspan="4">Summary</th></tr></thead>
+      <tbody>
+        <tr><td>Time (seconds)</td><td class="num mono">${fmt1(secTotal)}</td><td>Seconds / item</td><td class="num mono">${fmt1(spi)}</td></tr>
+        <tr><td>Hopper cap</td><td class="num mono">${cap}</td><td>Stack size</td><td class="num mono">${stack}</td></tr>
+        <tr><td>Rounding</td><td>${rounding}</td><td>Forced layers</td><td class="num mono">${forcedLayers || "—"}</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <thead><tr><th>Totals</th><th class="num">Value</th><th></th><th class="num">Value</th></tr></thead>
+      <tbody>
+        <tr><td>Raw items</td><td class="num mono">${fmt1(rawItems)}</td><td>Rounded items</td><td class="num mono">${totalItems}</td></tr>
+      </tbody>
+    </table>
+  `;
+
+  const layerTable = document.createElement("table");
+  layerTable.innerHTML = `
+    <thead><tr><th>#</th><th>Max items</th><th class="num">Stacks</th><th class="num">Items</th></tr></thead>
+    <tbody></tbody>
+  `;
+  const tbody = layerTable.querySelector("tbody");
+  list.forEach((limit, i) => {
+    const [s, r] = stacksAndItems(limit, stack);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i+1}</td><td class="num mono">${limit}</td><td class="num mono">${s}</td><td class="num mono">${r}</td>`;
+    tbody.appendChild(tr);
+  });
+  el.appendChild(layerTable);
+
+  if (showTiming) {
+    let total = spi;
+    const timing = document.createElement("table");
+    timing.innerHTML = `<thead><tr><th colspan="4">Per-layer timing contribution</th></tr></thead>`;
+    const tb = document.createElement("tbody");
+    tb.innerHTML += `<tr><td>Base (no clocks)</td><td colspan="3">${fmtUnits(total)}</td></tr>`;
+    list.forEach((m, i) => {
+      const newTotal = total * m, added = newTotal - total;
+      tb.innerHTML += `<tr><td>Layer ${i+1} ×${m}</td><td>${fmtUnits(newTotal)}</td><td>added</td><td>${fmtUnits(added)}</td></tr>`;
+      total = newTotal;
+    });
+    tb.innerHTML += `<tr><td><b>Final period</b></td><td colspan="3"><b>${fmtUnits(total)}</b></td></tr>`;
+    timing.appendChild(tb);
+    el.appendChild(timing);
+  }
+  return el;
+}
+
+function renderCards({secTotal, spi, cap, stack, rounding, forcedLayers, showTiming, rawItems, totalItems, list}){
+  const el = document.createElement("div");
+
+  const kvs = document.createElement("div");
+  kvs.className = "kvs";
+  kvs.innerHTML = `
+    <div class="kv"><span>Time (seconds)</span><b class="mono">${fmt1(secTotal)}</b></div>
+    <div class="kv"><span>Seconds / item</span><b class="mono">${fmt1(spi)}</b></div>
+    <div class="kv"><span>Hopper cap</span><b class="mono">${cap}</b></div>
+    <div class="kv"><span>Stack size</span><b class="mono">${stack}</b></div>
+    <div class="kv"><span>Rounding</span><b>${rounding}</b></div>
+    <div class="kv"><span>Forced layers</span><b>${forcedLayers || "—"}</b></div>
+  `;
+  el.appendChild(kvs);
+
+  const totals = document.createElement("div");
+  totals.className = "section kvs";
+  totals.innerHTML = `
+    <div class="kv"><span>Raw items</span><b class="mono">${fmt1(rawItems)}</b></div>
+    <div class="kv"><span>Rounded items</span><b class="mono">${totalItems}</b></div>
+  `;
+  el.appendChild(totals);
+
+  const layersWrap = document.createElement("div");
+  layersWrap.className = "section";
+  layersWrap.innerHTML = `<div class="badge">Clock layers: <b>${list.length}</b></div>`;
+  const items = document.createElement("div"); items.className = "layers";
+  list.forEach((limit, i) => {
+    const [s, r] = stacksAndItems(limit, stack);
+    const row = document.createElement("div");
+    row.className = "layer-item";
+    row.innerHTML = `<div><b>Layer ${i+1}</b> · max <span class="mono">${limit}</span></div><div class="mono">${s} stacks + ${r} items</div>`;
+    items.appendChild(row);
+  });
+  layersWrap.appendChild(items);
+  el.appendChild(layersWrap);
+
+  if (showTiming) {
+    const t = document.createElement("div");
+    t.className = "section kvs";
+    let total = spi;
+    t.innerHTML += `<div class="kv"><span>Base (no clocks)</span><b>${fmtUnits(total)}</b></div>`;
+    list.forEach((m, i) => {
+      const newTotal = total * m, added = newTotal - total;
+      t.innerHTML += `<div class="kv"><span>Layer ${i+1} ×${m}</span><b>${fmtUnits(newTotal)}</b></div>`;
+      t.innerHTML += `<div class="kv"><span>Added</span><b>${fmtUnits(added)}</b></div>`;
+      total = newTotal;
+    });
+    t.innerHTML += `<div class="kv"><span><b>Final period</b></span><b>${fmtUnits(total)}</b></div>`;
+    el.appendChild(t);
+  }
+  return el;
+}
+
+/* ===== Compute & display ===== */
+document.getElementById("computeBtn").addEventListener("click", () => {
+  try {
+    const advanced = advToggle.checked;
+
+    let secTotal, spi, cap, stack, rounding, showTiming, forcedLayers;
+    if (advanced) {
+      secTotal = toFloat(document.getElementById("secTotalAdv").value, null);
+      spi      = toFloat(document.getElementById("spi").value, DEFAULT_SPI);
+      cap      = toInt  (document.getElementById("cap").value, DEFAULT_CAP);
+      stack    = toInt  (document.getElementById("stack").value, DEFAULT_STACK);
+      rounding = (document.getElementById("rounding").value || DEFAULT_ROUND).toLowerCase();
+      showTiming = document.getElementById("showTiming").checked;
+      const fl = (document.getElementById("forcedLayers").value || "").trim();
+      forcedLayers = fl === "" ? 0 : parseInt(fl, 10);
+      if (!isFinite(forcedLayers)) forcedLayers = 0;
+    } else {
+      secTotal = toFloat(document.getElementById("secTotal").value, null);
+      spi      = DEFAULT_SPI;
+      cap      = DEFAULT_CAP;
+      stack    = DEFAULT_STACK;
+      rounding = DEFAULT_ROUND;
+      showTiming = false;
+      forcedLayers = 0;
+    }
+
+    const rawItems = secTotal / spi;
+    const totalItems = roundItems(rawItems, rounding);
+
+    let list;
+    if (forcedLayers && forcedLayers > 0) {
+      const bins = binsWithExactLayers(totalItems, forcedLayers, cap);
+      if (bins === null) {
+        tableView.innerHTML = `<div class="error">Cannot factor <b>${totalItems}</b> into exactly <b>${forcedLayers}</b> layer(s) with cap <b>${cap}</b>.</div>`;
+        cardView.innerHTML  = tableView.innerHTML;
+        placeholder.style.display = "none";
+        return;
+      }
+      list = bins;
+    } else {
+      list = hopperLayersMin(totalItems, cap);
+    }
+
+    const params = {secTotal, spi, cap, stack, rounding, forcedLayers, showTiming, rawItems, totalItems, list};
+
+    tableView.innerHTML = "";
+    tableView.appendChild(renderTable(params));
+
+    cardView.innerHTML = "";
+    cardView.appendChild(renderCards(params));
+
+    placeholder.style.display = "none";
+  } catch (e) {
+    placeholder.style.display = "block";
+    placeholder.innerHTML = `<span class="error">Input error:</span> ${e.message || e}`;
+  }
+});
+
+/* Default: Cards view */
+setView("cards");
+</script>
+</body>
+</html>
